@@ -30,6 +30,23 @@ func (s *Storage) GetDatabase(db string) (*Database, error) {
 	return &database, nil
 }
 
+func (s *Storage) DeleteDatabase(db string) error {
+	_, ok := s.databases[db]
+	if !ok {
+		return errors.New("database not found")
+	}
+
+	delete(s.databases, db)
+	return nil
+}
+
+func (s *Storage) GetDBNames() (names []string) {
+	for key := range s.databases {
+		names = append(names, key)
+	}
+	return
+}
+
 type Database struct {
 	table map[string]string
 }
@@ -39,22 +56,29 @@ func initDatabase() Database {
 }
 
 func (db *Database) Set(key, value string) error {
-	// FIXME: Should it repeatedly update key value or create it once?
-	//
-	// _, ok := db.table[key]
-	// if ok {
-	//     return errors.New("key already exists")
-	// }
-
 	db.table[key] = value
 
 	return nil
 }
 
-func (db *Database) Get(key string) (string, error) {
+func (db *Database) Get(key string) *string {
 	value, ok := db.table[key]
 	if !ok {
-		return "", errors.New("key not found")
+		return nil
 	}
-	return value, nil
+	return &value
+}
+
+func (db *Database) Delete(key string) error {
+	_, ok := db.table[key]
+	if !ok {
+		return errors.New("key not found")
+	}
+
+	delete(db.table, key)
+	return nil
+}
+
+func (db *Database) GetAllKeys() *map[string]string {
+	return &db.table
 }
