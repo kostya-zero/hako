@@ -107,12 +107,12 @@ func (db *Database) Delete(key string) error {
 	return nil
 }
 
-func (db *Database) GetAllKeys() *map[string]string {
+func (db *Database) GetAllKeys() map[string]string {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
-	copyMap := make(map[string]string, len(db.table))
-	maps.Copy(copyMap, db.table)
+	keys := make(map[string]string, len(db.table))
+	maps.Copy(keys, db.table)
 
-	return &copyMap
+	return keys
 }

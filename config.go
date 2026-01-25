@@ -6,8 +6,16 @@ import (
 )
 
 type Config struct {
-	Port int
-	File string
+	Port             int
+	File             string
+	SnapshotsEnabled bool `json:"snapshots_enabled"`
+}
+
+func GetDefaultConfig() Config {
+	return Config{
+		Port: 7000,
+		File: "hako-snapshot.dat",
+	}
 }
 
 func LoadConfig(path string) (*Config, error) {

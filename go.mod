@@ -1,6 +1,6 @@
 module github.com/kostya-zero/hako
 
-go 1.25.5
+go 1.25.6
 
 require (
 	github.com/andybalholm/brotli v1.1.0 // indirect

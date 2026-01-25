@@ -2,7 +2,10 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -10,9 +13,24 @@ func StartServer(config *Config) error {
 	// Using in-memory storage for now
 	storage := NewStorage()
 
+	// Initialize log
+
+	logger := log.NewWithOptions(os.Stdout, log.Options{
+		ReportCaller:    false,
+		ReportTimestamp: true,
+		TimeFormat:      time.RFC1123,
+	})
+
+	logger.Info("Starting app")
+
 	app := fiber.New(fiber.Config{
 		AppName: fmt.Sprintf("Hako Database %s", Version),
 	})
+
+	// Required because of how fiber works with params
+	safeCopy := func(value string) string {
+		return string(append([]byte(nil), value...))
+	}
 
 	app.Get("/db", func(c *fiber.Ctx) error {
 		dbs := storage.GetDBNames()
@@ -23,7 +41,7 @@ func StartServer(config *Config) error {
 	})
 
 	app.Post("/db/:database", func(c *fiber.Ctx) error {
-		name := c.Params("database")
+		name := safeCopy(c.Params("database"))
 		err := storage.CreateDatabase(name)
 		if err != nil {
 			return c.Status(409).JSON(fiber.Map{
@@ -31,18 +49,23 @@ func StartServer(config *Config) error {
 			})
 		}
 
+		logger.Info("New database created.", "name", name)
+
 		return c.Status(201).JSON(fiber.Map{
 			"name": name,
 		})
 	})
 
 	app.Delete("/db/:database", func(c *fiber.Ctx) error {
-		err := storage.DeleteDatabase(c.Params("database"))
+		name := safeCopy(c.Params("database"))
+		err := storage.DeleteDatabase(name)
 		if err != nil {
 			return c.Status(404).JSON(fiber.Map{
 				"error": err.Error(),
 			})
 		}
+
+		logger.Info("Database deleted.", "name", name)
 
 		return c.Status(204).JSON(fiber.Map{
 			"ok": true,
@@ -50,7 +73,7 @@ func StartServer(config *Config) error {
 	})
 
 	app.Get("/db/:database/keys", func(c *fiber.Ctx) error {
-		databaseName := c.Params("database")
+		databaseName := safeCopy(c.Params("database"))
 		db, err := storage.GetDatabase(databaseName)
 		if err != nil {
 			return c.JSON(fiber.Map{
@@ -63,13 +86,13 @@ func StartServer(config *Config) error {
 		return c.JSON(fiber.Map{
 			"db":    databaseName,
 			"keys":  keys,
-			"count": len(*keys),
+			"count": len(keys),
 		})
 	})
 
 	app.Get("/db/:database/kv/:key", func(c *fiber.Ctx) error {
-		DBName := c.Params("database")
-		keyName := c.Params("key")
+		DBName := safeCopy(c.Params("database"))
+		keyName := safeCopy(c.Params("key"))
 
 		db, err := storage.GetDatabase(DBName)
 		if err != nil {
@@ -89,8 +112,8 @@ func StartServer(config *Config) error {
 	})
 
 	app.Post("/db/:database/kv/:key", func(c *fiber.Ctx) error {
-		DBName := c.Params("database")
-		keyName := c.Params("key")
+		DBName := safeCopy(c.Params("database"))
+		keyName := safeCopy(c.Params("key"))
 
 		body := string(c.BodyRaw())
 
@@ -114,14 +137,16 @@ func StartServer(config *Config) error {
 			})
 		}
 
+		logger.Info("New key added.", "database", DBName, "key", keyName)
+
 		return c.Status(200).JSON(fiber.Map{
 			"ok": true,
 		})
 	})
 
 	app.Delete("/db/:database/kv/:key", func(c *fiber.Ctx) error {
-		DBName := c.Params("database")
-		keyName := c.Params("key")
+		DBName := safeCopy(c.Params("database"))
+		keyName := safeCopy(c.Params("key"))
 
 		db, err := storage.GetDatabase(DBName)
 		if err != nil {
@@ -136,6 +161,8 @@ func StartServer(config *Config) error {
 				"error": err.Error(),
 			})
 		}
+
+		logger.Info("Key deleted.", "database", DBName, "key", keyName)
 
 		return c.Status(200).JSON(fiber.Map{
 			"ok": true,
