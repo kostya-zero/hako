@@ -8,7 +8,7 @@ import (
 
 func StartServer(config *Config) error {
 	// Using in-memory storage for now
-	storage := initStorage()
+	storage := NewStorage()
 
 	app := fiber.New(fiber.Config{
 		AppName: fmt.Sprintf("Hako Database %s", Version),

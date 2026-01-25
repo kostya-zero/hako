@@ -1,36 +1,51 @@
 package main
 
-import "errors"
+import (
+	"errors"
+	"maps"
+	"sync"
+)
 
 type Storage struct {
-	databases map[string]Database
+	mu        sync.RWMutex
+	databases map[string]*Database
 }
 
-func initStorage() Storage {
-	return Storage{databases: make(map[string]Database)}
+func NewStorage() Storage {
+	return Storage{databases: make(map[string]*Database)}
 }
 
 func (s *Storage) CreateDatabase(db string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	_, ok := s.databases[db]
 	if ok {
 		return errors.New("database already exists")
 	}
 
-	s.databases[db] = initDatabase()
+	newDB := NewDatabase()
+	s.databases[db] = &newDB
 
 	return nil
 }
 
 func (s *Storage) GetDatabase(db string) (*Database, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	database, ok := s.databases[db]
 	if !ok {
 		return nil, errors.New("database not found")
 	}
 
-	return &database, nil
+	return database, nil
 }
 
 func (s *Storage) DeleteDatabase(db string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	_, ok := s.databases[db]
 	if !ok {
 		return errors.New("database not found")
@@ -41,6 +56,9 @@ func (s *Storage) DeleteDatabase(db string) error {
 }
 
 func (s *Storage) GetDBNames() (names []string) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	for key := range s.databases {
 		names = append(names, key)
 	}
@@ -48,20 +66,27 @@ func (s *Storage) GetDBNames() (names []string) {
 }
 
 type Database struct {
+	mu    sync.RWMutex
 	table map[string]string
 }
 
-func initDatabase() Database {
+func NewDatabase() Database {
 	return Database{table: make(map[string]string)}
 }
 
 func (db *Database) Set(key, value string) error {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
 	db.table[key] = value
 
 	return nil
 }
 
 func (db *Database) Get(key string) *string {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+
 	value, ok := db.table[key]
 	if !ok {
 		return nil
@@ -70,6 +95,9 @@ func (db *Database) Get(key string) *string {
 }
 
 func (db *Database) Delete(key string) error {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
 	_, ok := db.table[key]
 	if !ok {
 		return errors.New("key not found")
@@ -80,5 +108,11 @@ func (db *Database) Delete(key string) error {
 }
 
 func (db *Database) GetAllKeys() *map[string]string {
-	return &db.table
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+
+	copyMap := make(map[string]string, len(db.table))
+	maps.Copy(copyMap, db.table)
+
+	return &copyMap
 }
