@@ -65,6 +65,27 @@ func (s *Storage) GetDBNames() (names []string) {
 	return
 }
 
+func (s *Storage) MakeSnapshot() map[string]map[string]string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	snapshot := make(map[string]map[string]string)
+
+	for name, db := range s.databases {
+		keys := db.GetAllKeys()
+		snapshot[name] = keys
+	}
+
+	return snapshot
+}
+
+func (s *Storage) Load(data map[string]map[string]string) {
+	for name, keys := range data {
+		db := NewDatabaseWithData(keys)
+		s.databases[name] = &db
+	}
+}
+
 type Database struct {
 	mu    sync.RWMutex
 	table map[string]string
@@ -72,6 +93,10 @@ type Database struct {
 
 func NewDatabase() Database {
 	return Database{table: make(map[string]string)}
+}
+
+func NewDatabaseWithData(data map[string]string) Database {
+	return Database{table: data}
 }
 
 func (db *Database) Set(key, value string) error {

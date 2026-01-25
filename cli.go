@@ -19,7 +19,8 @@ func BuildCli() *cobra.Command {
 		Use:   "run",
 		Short: "Start the server.",
 		Run: func(cmd *cobra.Command, args []string) {
-			StartServer(&Config{Port: 3000, File: ""})
+			config := GetDefaultConfig()
+			StartServer(&config)
 		},
 	}
 
