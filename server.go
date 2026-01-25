@@ -1,27 +1,85 @@
 package main
 
 import (
+	"context"
+	"encoding/gob"
+	"errors"
 	"fmt"
 	"os"
 	"time"
 
-	"github.com/charmbracelet/log"
 	"github.com/gofiber/fiber/v2"
 )
 
+func LoadSnapshot(storage *Storage, config *Config) error {
+	f, err := os.Open(config.SnapshotFile)
+	if err != nil {
+		return errors.New("cannot open snapshot file")
+	}
+	defer f.Close()
+
+	decoder := gob.NewDecoder(f)
+
+	var snapshot map[string]map[string]string
+
+	if err = decoder.Decode(&snapshot); err != nil {
+		return errors.New("cannot decode snapshot")
+	}
+
+	storage.Load(snapshot)
+
+	return nil
+}
+
+func RunSnapshotService(config *Config, storage *Storage, ctx context.Context) {
+	ticker := time.NewTicker(time.Second * 30)
+	select {
+	case <-ticker.C:
+		PerformSnapshot(config, storage)
+	case <-ctx.Done():
+		l.Info("Performing final snapshot save...")
+		PerformSnapshot(config, storage)
+	}
+}
+
+func PerformSnapshot(config *Config, storage *Storage) {
+	if !storage.IsDirty() {
+		return
+	}
+
+	snapshot := storage.MakeSnapshot()
+	file, err := os.Create(config.SnapshotFile)
+	if err != nil {
+		l.Errorf("Failed to create file: %s", err.Error())
+		return
+	}
+	defer file.Close()
+
+	encode := gob.NewEncoder(file)
+
+	if err = encode.Encode(snapshot); err != nil {
+		l.Errorf("Failed to encode a snapshot: %s", err.Error())
+		return
+	}
+
+	l.Info("Successfully made a snapshot.")
+}
+
 func StartServer(config *Config) error {
-	// Using in-memory storage for now
 	storage := NewStorage()
+	ctx := context.Background()
 
-	// Initialize log
+	if config.SnapshotsEnabled && config.SnapshotFile != "" {
+		err := LoadSnapshot(&storage, config)
+		if err != nil {
+			l.Warnf("Failed to load snapshot: %s. Using empty database instead.", err.Error())
+		}
 
-	logger := log.NewWithOptions(os.Stdout, log.Options{
-		ReportCaller:    false,
-		ReportTimestamp: true,
-		TimeFormat:      time.RFC1123,
-	})
+		// Start snapshot service.
+		go RunSnapshotService(config, &storage, ctx)
+	}
 
-	logger.Info("Starting app")
+	l.Info("Starting Hako Server %s", Version)
 
 	app := fiber.New(fiber.Config{
 		AppName: fmt.Sprintf("Hako Database %s", Version),
@@ -49,7 +107,7 @@ func StartServer(config *Config) error {
 			})
 		}
 
-		logger.Info("New database created.", "name", name)
+		l.Info("New database created.", "name", name)
 
 		return c.Status(201).JSON(fiber.Map{
 			"name": name,
@@ -65,7 +123,7 @@ func StartServer(config *Config) error {
 			})
 		}
 
-		logger.Info("Database deleted.", "name", name)
+		l.Info("Database deleted.", "name", name)
 
 		return c.Status(204).JSON(fiber.Map{
 			"ok": true,
@@ -137,7 +195,7 @@ func StartServer(config *Config) error {
 			})
 		}
 
-		logger.Info("New key added.", "database", DBName, "key", keyName)
+		l.Info("New key added.", "database", DBName, "key", keyName)
 
 		return c.Status(200).JSON(fiber.Map{
 			"ok": true,
@@ -162,7 +220,7 @@ func StartServer(config *Config) error {
 			})
 		}
 
-		logger.Info("Key deleted.", "database", DBName, "key", keyName)
+		l.Info("Key deleted.", "database", DBName, "key", keyName)
 
 		return c.Status(200).JSON(fiber.Map{
 			"ok": true,

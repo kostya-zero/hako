@@ -9,6 +9,7 @@ import (
 type Storage struct {
 	mu        sync.RWMutex
 	databases map[string]*Database
+	dirty     bool
 }
 
 func NewStorage() Storage {
@@ -86,9 +87,37 @@ func (s *Storage) Load(data map[string]map[string]string) {
 	}
 }
 
+func (s *Storage) IsDirty() bool {
+	if s.dirty {
+		return s.dirty
+	}
+
+	for _, db := range s.databases {
+		if db.dirty {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (s *Storage) ResetDirtyState() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.dirty = false
+
+	for _, db := range s.databases {
+		db.mu.Lock()
+		db.dirty = false
+		db.mu.Unlock()
+	}
+}
+
 type Database struct {
 	mu    sync.RWMutex
 	table map[string]string
+	dirty bool
 }
 
 func NewDatabase() Database {
@@ -103,6 +132,7 @@ func (db *Database) Set(key, value string) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
+	db.dirty = true
 	db.table[key] = value
 
 	return nil
@@ -129,6 +159,7 @@ func (db *Database) Delete(key string) error {
 	}
 
 	delete(db.table, key)
+	db.dirty = true
 	return nil
 }
 

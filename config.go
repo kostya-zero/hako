@@ -6,29 +6,29 @@ import (
 )
 
 type Config struct {
-	Port             int
-	SnapshotFile     string
-	SnapshotsEnabled bool `json:"snapshots_enabled"`
+	Port             int    `json:"port"`
+	SnapshotFile     string `json:"snapshot_file"`
+	SnapshotsEnabled bool   `json:"snapshots_enabled"`
 }
 
 func GetDefaultConfig() Config {
 	return Config{
 		Port:             7000,
 		SnapshotFile:     "hako-snapshot.dat",
-		SnapshotsEnabled: true,
+		SnapshotsEnabled: false,
 	}
 }
 
-func LoadConfig(path string) (*Config, error) {
+func LoadConfig(path string) (Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return Config{}, err
 	}
 
 	var cfg Config
 	if err = json.Unmarshal(data, &cfg); err != nil {
-		return nil, err
+		return Config{}, err
 	}
 
-	return &cfg, nil
+	return cfg, nil
 }
