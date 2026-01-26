@@ -26,14 +26,7 @@ func BuildCli() *cobra.Command {
 			var config Config
 
 			if configPath != "" {
-				data, err := os.ReadFile(configPath)
-				if err != nil {
-					l.Warn("Cannot load configuration file. Falling back to default.")
-
-					config = GetDefaultConfig()
-				}
-				content := string(data)
-				result, err := LoadConfig(content)
+				result, err := LoadConfig(configPath)
 				if err != nil {
 					fmt.Printf("Failed to parse configuration file: %s\n", err.Error())
 					os.Exit(1)

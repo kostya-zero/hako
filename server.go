@@ -6,6 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -44,6 +47,7 @@ func RunSnapshotService(config *Config, storage *Storage, ctx context.Context) {
 
 func PerformSnapshot(config *Config, storage *Storage) {
 	if !storage.IsDirty() {
+		l.Warn("No need to make a snapshot. Storage is not modified.")
 		return
 	}
 
@@ -66,20 +70,25 @@ func PerformSnapshot(config *Config, storage *Storage) {
 }
 
 func StartServer(config *Config) error {
+	var wg sync.WaitGroup
 	storage := NewStorage()
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
-	if config.SnapshotsEnabled && config.SnapshotFile != "" {
+	if config.SnapshotEnabled && config.SnapshotFile != "" {
+		l.Info("Snapshot enabled. Loading a snapshot.")
 		err := LoadSnapshot(&storage, config)
 		if err != nil {
 			l.Warnf("Failed to load snapshot: %s. Using empty database instead.", err.Error())
 		}
 
 		// Start snapshot service.
-		go RunSnapshotService(config, &storage, ctx)
+		wg.Go(func() {
+			RunSnapshotService(config, &storage, ctx)
+		})
 	}
 
-	l.Info("Starting Hako Server %s", Version)
+	l.Infof("Starting Hako Server %s", Version)
 
 	app := fiber.New(fiber.Config{
 		AppName: fmt.Sprintf("Hako Database %s", Version),
@@ -227,7 +236,25 @@ func StartServer(config *Config) error {
 		})
 	})
 
-	app.Listen(":3000")
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := app.Listen(config.Address); err != nil {
+			l.Errorf("Server listen stopped: %s", err.Error())
+		}
+	}()
 
+	<-ctx.Done()
+	l.Info("Performing shutdown...")
+	stop()
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := app.ShutdownWithContext(shutdownCtx); err != nil {
+		l.Errorf("Failed to shutdown server: %s", err.Error())
+	}
+
+	wg.Wait()
 	return nil
 }
