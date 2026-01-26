@@ -6,7 +6,7 @@ import (
 )
 
 type Config struct {
-	Address         string
+	Address         string `json:"address"`
 	SnapshotFile    string `json:"snapshot_file"`
 	SnapshotEnabled bool   `json:"snapshot_enabled"`
 }
