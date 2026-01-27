@@ -109,6 +109,23 @@ Send the value in the request body (raw text).
 DELETE /db/:database_name/kv/:key
 ```
 
+### System Information
+
+#### Machine Info
+```http
+GET /system/machine
+```
+
+#### About Hako
+```http
+GET /system/software
+```
+
+#### Storage Info
+```http
+GET /system/storage
+```
+
 ## Persistence
 
 When `snapshot_enabled` is set to `true`, Hako will automatically save the state of the storage to disk:

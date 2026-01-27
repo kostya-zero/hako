@@ -114,6 +114,10 @@ func (s *Storage) ResetDirtyState() {
 	}
 }
 
+func (s *Storage) CountDB() int {
+	return len(s.databases)
+}
+
 type Database struct {
 	mu    sync.RWMutex
 	table map[string]string

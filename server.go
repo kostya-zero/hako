@@ -7,11 +7,13 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"runtime"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/shirou/gopsutil/v4/host"
 )
 
 func LoadSnapshot(storage *Storage, config *Config) error {
@@ -236,13 +238,39 @@ func StartServer(config *Config) error {
 		})
 	})
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	app.Get("/system/storage", func(c *fiber.Ctx) error {
+		return c.Status(200).JSON(fiber.Map{
+			"snapshot_enabled": config.SnapshotEnabled,
+			"count_dbs":        storage.CountDB(),
+		})
+	})
+
+	app.Get("/system/software", func(c *fiber.Ctx) error {
+		return c.Status(200).JSON(fiber.Map{
+			"version": Version,
+			"arch":    runtime.GOARCH,
+			"os":      runtime.GOOS,
+		})
+	})
+
+	app.Get("/system/machine", func(c *fiber.Ctx) error {
+		system, _ := host.Info()
+
+		return c.Status(200).JSON(fiber.Map{
+			"os":               system.OS,
+			"version":          system.KernelVersion,
+			"numcpu":           runtime.NumCPU(),
+			"arch":             system.KernelArch,
+			"platform":         system.Platform,
+			"platform_version": system.PlatformVersion,
+		})
+	})
+
+	wg.Go(func() {
 		if err := app.Listen(config.Address); err != nil {
 			l.Errorf("Server listen stopped: %s", err.Error())
 		}
-	}()
+	})
 
 	<-ctx.Done()
 	l.Info("Performing shutdown...")
