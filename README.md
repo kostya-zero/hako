@@ -38,7 +38,7 @@ You can start the server using the `run` command:
 ./hako run
 ```
 
-By default, the server listens on `:7000`.
+By default, the server listens on `:3000`.
 
 ## Configuration
 
@@ -52,7 +52,7 @@ Hako can be configured using a JSON file. Use the `--config` flag to specify the
 
 | Key               | Type    | Default               | Description                                      |
 | ----------------- | ------- | --------------------- | ------------------------------------------------ |
-| `address`         | string  | `:7000`               | The address and port to listen on.               |
+| `address`         | string  | `:3000`               | The address and port to listen on.               |
 | `snapshot_enabled`| boolean | `false`               | Enable or disable data persistence via snapshots.|
 | `snapshot_file`   | string  | `hako-snapshot.dat`   | The file path where snapshots will be saved.     |
 
