@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"context"
@@ -13,11 +13,14 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/kostya-zero/hako/internal/config"
+	"github.com/kostya-zero/hako/internal/store"
+	"github.com/kostya-zero/hako/internal/utils"
 	"github.com/shirou/gopsutil/v4/host"
 )
 
-func LoadSnapshot(storage *Storage, config *Config) error {
-	f, err := os.Open(config.SnapshotFile)
+func LoadSnapshot(s *store.Storage, cfg *config.Config) error {
+	f, err := os.Open(cfg.SnapshotFile)
 	if err != nil {
 		return errors.New("cannot open snapshot file")
 	}
@@ -31,32 +34,32 @@ func LoadSnapshot(storage *Storage, config *Config) error {
 		return errors.New("cannot decode snapshot")
 	}
 
-	storage.Load(snapshot)
+	s.Load(snapshot)
 
 	return nil
 }
 
-func RunSnapshotService(config *Config, storage *Storage, ctx context.Context) {
+func RunSnapshotService(c *config.Config, s *store.Storage, ctx context.Context) {
 	ticker := time.NewTicker(time.Second * 30)
 	select {
 	case <-ticker.C:
-		PerformSnapshot(config, storage)
+		PerformSnapshot(c, s)
 	case <-ctx.Done():
-		l.Info("Performing final snapshot save...")
-		PerformSnapshot(config, storage)
+		utils.L.Info("Performing final snapshot save...")
+		PerformSnapshot(c, s)
 	}
 }
 
-func PerformSnapshot(config *Config, storage *Storage) {
-	if !storage.IsDirty() {
-		l.Warn("No need to make a snapshot. Storage is not modified.")
+func PerformSnapshot(c *config.Config, s *store.Storage) {
+	if !s.IsDirty() {
+		utils.L.Warn("No need to make a snapshot. Storage is not modified.")
 		return
 	}
 
-	snapshot := storage.MakeSnapshot()
-	file, err := os.Create(config.SnapshotFile)
+	snapshot := s.MakeSnapshot()
+	file, err := os.Create(c.SnapshotFile)
 	if err != nil {
-		l.Errorf("Failed to create file: %s", err.Error())
+		utils.L.Errorf("Failed to create file: %s", err.Error())
 		return
 	}
 	defer file.Close()
@@ -64,36 +67,36 @@ func PerformSnapshot(config *Config, storage *Storage) {
 	encode := gob.NewEncoder(file)
 
 	if err = encode.Encode(snapshot); err != nil {
-		l.Errorf("Failed to encode a snapshot: %s", err.Error())
+		utils.L.Errorf("Failed to encode a snapshot: %s", err.Error())
 		return
 	}
 
-	l.Info("Successfully made a snapshot.")
+	utils.L.Info("Successfully made a snapshot.")
 }
 
-func StartServer(config *Config) error {
+func StartServer(cfg *config.Config) error {
 	var wg sync.WaitGroup
-	storage := NewStorage()
+	storage := store.NewStorage()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	if config.SnapshotEnabled && config.SnapshotFile != "" {
-		l.Info("Snapshot enabled. Loading a snapshot.")
-		err := LoadSnapshot(&storage, config)
+	if cfg.SnapshotEnabled && cfg.SnapshotFile != "" {
+		utils.L.Info("Snapshot enabled. Loading a snapshot.")
+		err := LoadSnapshot(&storage, cfg)
 		if err != nil {
-			l.Warnf("Failed to load snapshot: %s. Using empty database instead.", err.Error())
+			utils.L.Warnf("Failed to load snapshot: %s. Using empty database instead.", err.Error())
 		}
 
 		// Start snapshot service.
 		wg.Go(func() {
-			RunSnapshotService(config, &storage, ctx)
+			RunSnapshotService(cfg, &storage, ctx)
 		})
 	}
 
-	l.Infof("Starting Hako Server %s", Version)
+	utils.L.Infof("Starting Hako Server %s", utils.Version)
 
 	app := fiber.New(fiber.Config{
-		AppName: fmt.Sprintf("Hako Database %s", Version),
+		AppName: fmt.Sprintf("Hako Database %s", utils.Version),
 	})
 
 	// Required because of how fiber works with params
@@ -118,7 +121,7 @@ func StartServer(config *Config) error {
 			})
 		}
 
-		l.Info("New database created.", "name", name)
+		utils.L.Info("New database created.", "name", name)
 
 		return c.Status(201).JSON(fiber.Map{
 			"name": name,
@@ -134,7 +137,7 @@ func StartServer(config *Config) error {
 			})
 		}
 
-		l.Info("Database deleted.", "name", name)
+		utils.L.Info("Database deleted.", "name", name)
 
 		return c.Status(204).JSON(fiber.Map{
 			"ok": true,
@@ -206,7 +209,7 @@ func StartServer(config *Config) error {
 			})
 		}
 
-		l.Info("New key added.", "database", DBName, "key", keyName)
+		utils.L.Info("New key added.", "database", DBName, "key", keyName)
 
 		return c.Status(200).JSON(fiber.Map{
 			"ok": true,
@@ -231,7 +234,7 @@ func StartServer(config *Config) error {
 			})
 		}
 
-		l.Info("Key deleted.", "database", DBName, "key", keyName)
+		utils.L.Info("Key deleted.", "database", DBName, "key", keyName)
 
 		return c.Status(200).JSON(fiber.Map{
 			"ok": true,
@@ -240,14 +243,14 @@ func StartServer(config *Config) error {
 
 	app.Get("/system/storage", func(c *fiber.Ctx) error {
 		return c.Status(200).JSON(fiber.Map{
-			"snapshot_enabled": config.SnapshotEnabled,
+			"snapshot_enabled": cfg.SnapshotEnabled,
 			"count_dbs":        storage.CountDB(),
 		})
 	})
 
 	app.Get("/system/software", func(c *fiber.Ctx) error {
 		return c.Status(200).JSON(fiber.Map{
-			"version": Version,
+			"version": utils.Version,
 			"arch":    runtime.GOARCH,
 			"os":      runtime.GOOS,
 		})
@@ -267,20 +270,20 @@ func StartServer(config *Config) error {
 	})
 
 	wg.Go(func() {
-		if err := app.Listen(config.Address); err != nil {
-			l.Errorf("Server listen stopped: %s", err.Error())
+		if err := app.Listen(cfg.Address); err != nil {
+			utils.L.Errorf("Server listen stopped: %s", err.Error())
 		}
 	})
 
 	<-ctx.Done()
-	l.Info("Performing shutdown...")
+	utils.L.Info("Performing shutdown...")
 	stop()
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	if err := app.ShutdownWithContext(shutdownCtx); err != nil {
-		l.Errorf("Failed to shutdown server: %s", err.Error())
+		utils.L.Errorf("Failed to shutdown server: %s", err.Error())
 	}
 
 	wg.Wait()

@@ -4,10 +4,10 @@ $GOEXPERIMENT=greenteagc
 default: run
 
 run:
-    go run . run
+    go run cmd/main/main.go run
 
 build:
-    go build -o ./hako
+    go build -o hako ./cmd/main
 
 build-exe:
-    go build -o .\hako.exe
+    go build -o hako.exe ./cmd/main
