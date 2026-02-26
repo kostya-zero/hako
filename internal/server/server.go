@@ -96,7 +96,8 @@ func StartServer(cfg *config.Config) error {
 	utils.L.Infof("Starting Hako Server %s", utils.Version)
 
 	app := fiber.New(fiber.Config{
-		AppName: fmt.Sprintf("Hako Database %s", utils.Version),
+		AppName:               fmt.Sprintf("Hako Database %s", utils.Version),
+		DisableStartupMessage: true,
 	})
 
 	// Required because of how fiber works with params
@@ -275,6 +276,7 @@ func StartServer(cfg *config.Config) error {
 		}
 	})
 
+	utils.L.Info("Hako is ready")
 	<-ctx.Done()
 	utils.L.Info("Performing shutdown...")
 	stop()
