@@ -13,6 +13,6 @@ func PrepareLogger() {
 	L = log.NewWithOptions(os.Stdout, log.Options{
 		ReportCaller:    false,
 		ReportTimestamp: true,
-		TimeFormat:      time.RFC1123,
+		TimeFormat:      time.RFC3339,
 	})
 }

@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -74,7 +75,7 @@ func PerformSnapshot(c *config.Config, s *store.Storage) {
 	utils.L.Info("Successfully made a snapshot.")
 }
 
-func StartServer(cfg *config.Config) error {
+func StartServer(cfg *config.Config) {
 	var wg sync.WaitGroup
 	storage := store.NewStorage()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -96,7 +97,8 @@ func StartServer(cfg *config.Config) error {
 	utils.L.Infof("Starting Hako Server %s", utils.Version)
 
 	app := fiber.New(fiber.Config{
-		AppName: fmt.Sprintf("Hako Database %s", utils.Version),
+		AppName:               fmt.Sprintf("Hako Database %s", utils.Version),
+		DisableStartupMessage: true,
 	})
 
 	// Required because of how fiber works with params
@@ -188,6 +190,7 @@ func StartServer(cfg *config.Config) error {
 		keyName := safeCopy(c.Params("key"))
 
 		body := string(c.BodyRaw())
+		body = strings.TrimSpace(body)
 
 		if body == "" {
 			return c.Status(400).JSON(fiber.Map{
@@ -275,6 +278,8 @@ func StartServer(cfg *config.Config) error {
 		}
 	})
 
+	utils.L.Info("Hako is ready")
+
 	<-ctx.Done()
 	utils.L.Info("Performing shutdown...")
 	stop()
@@ -284,8 +289,8 @@ func StartServer(cfg *config.Config) error {
 
 	if err := app.ShutdownWithContext(shutdownCtx); err != nil {
 		utils.L.Errorf("Failed to shutdown server: %s", err.Error())
+		os.Exit(1)
 	}
 
 	wg.Wait()
-	return nil
 }

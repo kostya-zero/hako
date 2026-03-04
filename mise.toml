@@ -1,0 +1,11 @@
+[tasks.run]
+description = "Run the app"
+run = "go run ./cmd/hako"
+
+[tasks.update]
+description = "Update dependencies"
+run = "go get -u ./..."
+
+[tasks.build]
+description = "Build the app"
+run = "go build ./cmd/hako"
