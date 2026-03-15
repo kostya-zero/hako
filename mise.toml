@@ -1,0 +1,7 @@
+[tasks.start]
+description = "Start the app"
+run = "go run ./cmd/hako"
+
+[tasks.build]
+description = "Build the app"
+run = "go build ./cmd/hako"
